@@ -1,0 +1,9 @@
+version: 2
+
+sources:
+  - name: staging
+    database: modern-saga-472915-f1
+    schema: divvy_tripdata
+
+    tables:
+      - name: divvy_tripdata_merged
