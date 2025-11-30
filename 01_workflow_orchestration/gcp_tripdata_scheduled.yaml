@@ -1,0 +1,139 @@
+id: gcp_tripdata_scheduled
+namespace: company.team
+description: |
+  Best to add a label `backfill:true` from the UI to track executions created via a backfill.
+  CSV data used here comes from: https://divvy-tripdata.s3.amazonaws.com/index.html
+
+#chicago bikeshare dataset link format:
+#https://divvy-tripdata.s3.amazonaws.com/202301-divvy-tripdata.zip
+
+variables:
+  file: "{{trigger.date | date('yyyyMM')}}-divvy-tripdata"
+  gcs_file: "gs://{{kv('GCP_BUCKET_NAME')}}/{{vars.file}}.csv"
+  table: "{{kv('GCP_DATASET')}}.{{trigger.date | date('yyyyMM')}}_divvy_tripdata"
+  data: "{{outputs.extract.outputFiles[(trigger.date | date('yyyyMM')) ~ '-divvy-tripdata.csv']}}"
+
+tasks:
+  - id: set_label
+    type: io.kestra.plugin.core.execution.Labels
+    labels:
+      file: "{{render(vars.file)}}.csv"
+
+  - id: extract
+    type: io.kestra.plugin.scripts.shell.Commands
+    outputFiles:
+      - "*.csv"
+    taskRunner:
+      type: io.kestra.plugin.core.runner.Process
+    commands:
+      - wget -q -O {{render(vars.file)}}.zip https://divvy-tripdata.s3.amazonaws.com/{{render(vars.file)}}.zip
+      - unzip -o {{render(vars.file)}}.zip -d ./
+
+  - id: upload_to_gcs
+    type: io.kestra.plugin.gcp.gcs.Upload
+    from: "{{render(vars.data)}}"
+    to: "{{render(vars.gcs_file)}}"
+    
+  # create main table for all data (monthly data will be merged here)
+  - id: bq_divvy_tripdata_merged
+    type: io.kestra.plugin.gcp.bigquery.Query
+    sql: |
+      CREATE TABLE IF NOT EXISTS `{{kv('GCP_PROJECT_ID')}}.{{kv('GCP_DATASET')}}.divvy_tripdata_merged`
+      (
+          filename STRING OPTIONS (description = 'The source filename from which the trip data was loaded.'),
+          ride_id BYTES OPTIONS (description = 'A unique id for the trip.'),
+          rideable_type STRING OPTIONS (description = 'Type of bike used during the trip'),
+          started_at TIMESTAMP OPTIONS (description = 'The date and time when the bike trip was started'),
+          ended_at TIMESTAMP OPTIONS (description = 'The date and time when the bike trip was ended'),
+          start_station_name STRING OPTIONS (description = 'The start station name'),
+          start_station_id STRING OPTIONS (description = 'The start station id'),
+          end_station_name STRING OPTIONS (description = 'The end station name'),
+          end_station_id STRING OPTIONS (description = 'The end station id'),
+          start_lat FLOAT64 OPTIONS (description = 'The start latitude'),
+          start_lng FLOAT64 OPTIONS (description = 'The start longitude'),
+          end_lat FLOAT64 OPTIONS (description = 'The end latitude'),
+          end_lng FLOAT64 OPTIONS (description = 'The end longitude'),
+          member_casual STRING OPTIONS (description = 'Whether the trip was by a member or non-member')
+      )
+      PARTITION BY DATE(started_at);
+
+  #create external table (data not directly stored in big query) for each month
+  - id: bq_divvy_tripdata_ext
+    type: io.kestra.plugin.gcp.bigquery.Query
+    sql: |
+      CREATE OR REPLACE EXTERNAL TABLE `{{kv('GCP_PROJECT_ID')}}.{{render(vars.table)}}_ext`
+      (
+          ride_id BYTES OPTIONS (description = 'A unique id for the trip.'),
+          rideable_type STRING OPTIONS (description = 'Type of bike used during the trip'),
+          started_at TIMESTAMP OPTIONS (description = 'The date and time when the bike trip was started'),
+          ended_at TIMESTAMP OPTIONS (description = 'The date and time when the bike trip was ended'),
+          start_station_name STRING OPTIONS (description = 'The start station name'),
+          start_station_id STRING OPTIONS (description = 'The start station id'),
+          end_station_name STRING OPTIONS (description = 'The end station name'),
+          end_station_id STRING OPTIONS (description = 'The end station id'),
+          start_lat FLOAT64 OPTIONS (description = 'The start latitude'),
+          start_lng FLOAT64 OPTIONS (description = 'The start longitude'),
+          end_lat FLOAT64 OPTIONS (description = 'The end latitude'),
+          end_lng FLOAT64 OPTIONS (description = 'The end longitude'),
+          member_casual STRING OPTIONS (description = 'Whether the trip was by a member or non-member')
+      )
+      OPTIONS (
+          format = 'CSV',
+          uris = ['{{render(vars.gcs_file)}}'],
+          skip_leading_rows = 1,
+          ignore_unknown_values = TRUE
+      );
+
+  #create staging table that will format nulls and add filename column to distinguish which month the trip was from
+  - id: bq_divvy_tripdata_tmp
+    type: io.kestra.plugin.gcp.bigquery.Query
+    sql: |
+      CREATE OR REPLACE TABLE `{{kv('GCP_PROJECT_ID')}}.{{render(vars.table)}}`
+        AS
+        SELECT
+          "{{render(vars.file)}}.csv" AS filename,
+          ride_id,
+          rideable_type,
+          started_at,
+          ended_at,
+          COALESCE(start_station_name, 'unknown') AS start_station_name,
+          COALESCE(start_station_id, 'unknown') AS start_station_id,
+          COALESCE(end_station_name, 'unknown') AS end_station_name,
+          COALESCE(end_station_id, 'unknown') AS end_station_id,
+          COALESCE(start_lat, 0) AS start_lat,
+          COALESCE(start_lng, 0) AS start_lng,
+          COALESCE(end_lat, 0) AS end_lat,
+          COALESCE(end_lng, 0) AS end_lng,
+          COALESCE(member_casual, 'unknown') AS member_casual
+        FROM `{{kv('GCP_PROJECT_ID')}}.{{render(vars.table)}}_ext`;
+
+  #merge each month's staging table data into main table and check if data already exists in main table before merge
+  - id: bq_data_merge
+    type: io.kestra.plugin.gcp.bigquery.Query
+    sql: |
+      MERGE INTO `{{kv('GCP_PROJECT_ID')}}.{{kv('GCP_DATASET')}}.divvy_tripdata_merged` T
+      USING `{{kv('GCP_PROJECT_ID')}}.{{render(vars.table)}}` S
+      ON T.ride_id = S.ride_id
+      WHEN NOT MATCHED THEN
+        INSERT (filename, ride_id, rideable_type, started_at, ended_at, start_station_name, start_station_id, end_station_name, end_station_id, start_lat, start_lng, end_lat, end_lng, member_casual)
+        VALUES (S.filename, S.ride_id, S.rideable_type, S.started_at, S.ended_at, S.start_station_name, S.start_station_id, S.end_station_name, S.end_station_id, S.start_lat, S.start_lng, S.end_lat, S.end_lng, S.member_casual);
+
+  #discard locally downloaded csvs
+  - id: purge_files
+    type: io.kestra.plugin.core.storage.PurgeCurrentExecutionFiles
+    description: To avoid cluttering your storage, we will remove the downloaded files
+
+#setup variables for google cloud
+pluginDefaults:
+  - type: io.kestra.plugin.gcp
+    values:
+      serviceAccount: "{{kv('GCP_CREDS')}}"
+      projectId: "{{kv('GCP_PROJECT_ID')}}"
+      location: "{{kv('GCP_LOCATION')}}"
+      bucket: "{{kv('GCP_BUCKET_NAME')}}"
+
+#trigger to run pipeline at specifc time each month
+triggers:
+  - id: pipeline_scheduled
+    type: io.kestra.plugin.core.trigger.Schedule
+    cron: "0 9 15 * *"

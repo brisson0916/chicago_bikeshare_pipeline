@@ -1,0 +1,19 @@
+FROM kestra/kestra:latest
+
+USER root
+
+# Install unzip using the suitable package manager (for later use in kestra)
+RUN set -e; \
+    if [ -x "$(command -v apk)" ]; then \
+        apk update && apk add --no-cache unzip; \
+    elif [ -x "$(command -v apt-get)" ]; then \
+        apt-get update && apt-get install -y unzip && rm -rf /var/lib/apt/lists/*; \
+    elif [ -x "$(command -v yum)" ]; then \
+        yum install -y unzip && yum clean all; \
+    elif [ -x "$(command -v microdnf)" ]; then \
+        microdnf install -y unzip && microdnf clean all; \
+    else \
+        echo "Error: No supported package manager found" && exit 1; \
+    fi
+
+USER kestra
