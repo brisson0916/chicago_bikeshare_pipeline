@@ -1,6 +1,11 @@
-{{ config(materialized='table') }}
+{{ 
+    config(
+        materialized='table',
+        description='Year Over Year Percentage Growth of Bike Trips per Quarter by User Type (2023-2024)'
+    ) 
+}}
 
-with trips_data as (
+WITH trips_data as (
     select * from {{ ref('fact_trips') }}
 ),
 total_trips_quarter AS(
