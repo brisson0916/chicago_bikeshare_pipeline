@@ -19,6 +19,6 @@ total_trips_quarter AS(
 )
 SELECT 
   *, 
-  100*(count_trips - (LAG(count_trips) OVER (PARTITION BY member_casual, start_quarter ORDER BY start_year)))/ LAG(count_trips) OVER (PARTITION BY member_casual, start_quarter ORDER BY start_year) as YoY_growth 
+  ROUND(100*(count_trips - (LAG(count_trips) OVER (PARTITION BY member_casual, start_quarter ORDER BY start_year)))/ LAG(count_trips) OVER (PARTITION BY member_casual, start_quarter ORDER BY start_year),2) as YoY_growth 
 FROM total_trips_quarter
 ORDER BY member_casual, start_quarter, start_year
