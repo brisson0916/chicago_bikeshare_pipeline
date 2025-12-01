@@ -1,6 +1,6 @@
 {{ config(materialized='table') }}
 
-with trips_data as (
+WITH trips_data as (
     select * from {{ ref('fact_trips') }}
 ),
 total_trips_quarter AS(
