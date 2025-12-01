@@ -22,6 +22,7 @@ select
   end_lat,
   end_lng,
   member_casual,
+  DATE(start_datetime) AS start_date,
   EXTRACT(YEAR FROM start_datetime) as start_year,
   EXTRACT(QUARTER FROM start_datetime) as start_quarter,
   EXTRACT(MONTH FROM start_datetime) as start_month,
