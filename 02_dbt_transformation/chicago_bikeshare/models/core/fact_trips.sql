@@ -27,7 +27,7 @@ select
   EXTRACT(YEAR FROM start_datetime) as start_year,
   EXTRACT(QUARTER FROM start_datetime) as start_quarter,
   EXTRACT(MONTH FROM start_datetime) as start_month,
-  EXTRACT(DAYOFWEEK FROM start_datetime) as start_day_of_week,
+  FORMAT_TIMESTAMP('%A', start_datetime) AS start_day_of_week_name,
   EXTRACT(HOUR FROM start_datetime) as start_hour,
   EXTRACT(WEEK FROM start_datetime) as start_week_of_year,
   TIMESTAMP_DIFF(end_datetime, start_datetime, SECOND) as trip_duration_seconds,
