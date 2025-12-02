@@ -1,6 +1,7 @@
 {{
     config(
-        materialized='view'
+        materialized='view',
+        description='Staging Table for enforcing data types'
     )
 }}
 
