@@ -1,7 +1,7 @@
 {{ 
   config(
     materialized='table',
-    description='Hourly Distribution of Trip Durations with Percentiles by User Type'
+    description='Hourly Distribution of Trip Duration Percentiles by User Type'
   ) 
 }}
 
@@ -22,3 +22,6 @@ SELECT
 FROM hourly_durations
 GROUP BY start_hour, member_casual
 ORDER BY start_hour, member_casual
+
+-- APPROX_QUANTILES(trip_duration_seconds, N) computes an array of 
+-- N+1 quantile boundaries over the input values.
