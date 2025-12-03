@@ -14,7 +14,6 @@ The goal of this project is to ingest, process, transform, and analyze monthly D
 - **Google Looker Studio - BI Reporting:** Google Looker Studio provides dashboards and visualizations on the processed data.
 
 Pipeline Flowchart:
-![Pipeline Flowchart](./screenshots/pipeline_flowchart.png)
 
 ```mermaid
 flowchart LR
@@ -28,7 +27,7 @@ flowchart LR
   GCS --> BigQuery
   BigQuery --> DBT
   DBT --> BigQuery
-  BigQuery --> Google_Looker_Studio
+  BigQuery --> Looker
 ```
 
 
