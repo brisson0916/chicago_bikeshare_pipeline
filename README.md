@@ -1,19 +1,19 @@
 # Chicago Bikeshare (Divvy) Data Pipeline
 
-This project is a end-to-end data engineering and analytics project for the **Chicago bikeshare program (Divvy)**, covering trip data from 2023 to 2024. The project demonstrates my skills in workflow orchestration, cloud data engineering, data transformation, and BI reporting.
+This project is a end-to-end data engineering and analytics project for the **Chicago bikeshare program (Divvy)**, covering over 11 million records of trip data from 2023 to 2024. The project demonstrates my skills in workflow orchestration and automation, cloud data engineering, data transformation, and BI reporting.
 
 ## Project Overview and Technologies Used
 
-The goal of this project is to ingest, process, transform, and analyze monthly Divvy trip data CSV files using modern cloud technologies and tools:
+This project ingests, processes, transforms, and analyzes monthly Divvy trip data CSV files using modern cloud technologies and tools to achieve automation:
 
-- **Data Source:** Monthly CSV files (each row = one bike trip record) from the official Data published by the Chicago Department of Transportation. ([Public S3 Bucket Link Here](https://divvybikes.com/system-data))
-- **Kestra - Workflow Orchestration:** Dockerized [Kestra](https://kestra.io/) YAML pipeline automates data ingestion and loading, schema enforcement, and does some simple cleaning.
-- **GCS Bucket - Data Lake:** Raw CSV files are stored in a Google Cloud Storage (GCS) bucket: [`gs://chicago-bikeshare-tripdata`](https://console.cloud.google.com/storage/browser/chicago-bikeshare-tripdata).
-- **Big Query - Data Warehouse:** Big Query used for data storage, staging, transformation, and querying.
-- **DBT - Data Modeling:** Data Build Tool (DBT) used for data transformation and building analytical models.
-- **Google Looker Studio - BI Reporting:** Google Looker Studio provides dashboards and visualizations on the processed data.
+- **Kestra:** [YAML based workflow orchestration pipeline](https://kestra.io/) that automates data ingestion and loading, schema enforcement, and some simple cleaning.
+- **Docker:** for the containerization of the Kestra pipeline.
+- **Google Cloud Storage:** Raw CSV files stored in a Google Cloud Storage (GCS) bucket serving as a data lake: [`gs://chicago-bikeshare-tripdata`](https://console.cloud.google.com/storage/browser/chicago-bikeshare-tripdata).
+- **Big Query:** Big Query as a data warehouse used for structured data storage, staging, and querying: [`modern-saga-472915-f1.divvy_tripdata`](https://console.cloud.google.com/bigquery?ws=!1m4!1m3!3m2!1smodern-saga-472915-f1!2sdivvy_tripdata).
+- **DBT:** Data Build Tool (DBT) used for data transformation and building analytical models.
+- **Google Looker Studio:** Google Looker Studio provides dashboards and visualizations on the processed data.
 
-Pipeline Flowchart:
+### Pipeline Flowchart:
 
 ```mermaid
 flowchart LR
@@ -29,6 +29,33 @@ flowchart LR
   DBT --> BigQuery
   BigQuery --> Looker
 ```
+
+## Quick Look at the Raw Data:
+Publicly available historical trip data from the Chicago Divvy Bikeshare program ([Public S3 Bucket Link Here](https://divvy-tripdata.s3.amazonaws.com/index.html)) published by the [Chicago Department of Transportation](https://divvybikes.com/system-data), released on a **monthly schedule**. 
+- Each month’s data is provided in the form of CSVs compressed as .zip files named in the format: `YYYYMM-divvy-tripdata.zip`
+    - for example, `202301-divvy-tripdata.zip` for January 2023.
+- Depending on the month, the compressed .zip file size typically ranges from **5 MB to 30 MB**.
+- Each row in the CSV files represents one bike trip record.
+
+### CSV Columns
+
+| Column Name           | Description                       |
+|----------------------|---------------------------------|
+| `ride_id`             | Unique identifier for each trip |
+| `rideable_type`       | Type of bike used               |
+| `started_at`          | Trip start timestamp            |
+| `ended_at`            | Trip end timestamp              |
+| `start_station_name`  | Name of the start station       |
+| `start_station_id`    | ID of the start station         |
+| `end_station_name`    | Name of the end station         |
+| `end_station_id`      | ID of the end station           |
+| `start_lat`           | Latitude of start location      |
+| `start_lng`           | Longitude of start location     |
+| `end_lat`             | Latitude of end location        |
+| `end_lng`             | Longitude of end location       |
+| `member_casual`       | User type (member or casual)   |
+
+Note: For the column `member_casual`, `member` indicates that the user has joined a monthly/yearly subscription program for divvy, while `casual` means that the user pays-as-you-go (one-off trips where you only pay for the time you ride).
 
 
 ## Detailed Architecture and Workflow
@@ -73,6 +100,10 @@ This project uses a **dockerized Kestra** pipeline [`gcp_tripdata_scheduled.yaml
 
 ### 2. Data Modeling with DBT
 
+**Integration with BigQuery and Automation:**  
+  - The dbt models utilize the data ingested into BigQuery by the Kestra pipeline. 
+  - Using **dbt Cloud Studio**, models within dbt Cloud are scheduled to run automatically every month to incorporate new data, shortly after Kestra completes the data ingestion.
+
 The following Models are created in DBT (Data Build Tool) as the transformation step for further downsteam analysis:
 
 Staging Models:
@@ -90,7 +121,7 @@ Core Models:
   - Weekend (Boolean)
   - Trip duration category (short, medium, long)
 
-- **Quarterly Usage Model ([`bike_trips_quarterly_usage.sql`](./02_dbt_transformation/chicago_bikeshare/models/core/bike_trips_quarterly_usage.sql)):**  
+- **Quarterly Usage Growth Model ([`bike_trips_quarterly_usage.sql`](./02_dbt_transformation/chicago_bikeshare/models/core/bike_trips_quarterly_usage.sql)):**  
   Calculates year-over-year percentage growth of bike trips per quarter by user type (member vs casual) for 2023-2024.
 
 - **Hourly Duration Percentiles Model ([`bike_trips_duration_percentile_hourly.sql`](./02_dbt_transformation/chicago_bikeshare/models/core/bike_trips_duration_percentile_hourly.sql)):**  
@@ -99,18 +130,45 @@ Core Models:
 Lineage of the DBT models:
 ![Lineage of the DBT Models](./screenshots/dbt_model_lineage.png)
 
-- **Integration with BigQuery and Automation:**  
-  All dbt models build on top of the data ingested into BigQuery by the Kestra pipeline. Using **dbt Cloud Studio**, these models are deployed and run directly against the BigQuery warehouse.  
-  - Jobs are scheduled within dbt Cloud to run automatically every month, shortly after Kestra completes the data ingestion.  
+
 
 
 ---
 
-### 3. Analytics and Visualization
+### 3. Analytics and Visualization: Google Looker Studio
 
-- The transformed data models are deployed into BigQuery.
-- Google Looker Studio connects to BigQuery for dashboards and reports.
-- Interactive visualizations provide insights into trip patterns, durations, rider types, and temporal trends.
+- Data models transformed in DBT are deployed back into BigQuery as tables.
+- Google Looker Studio connects to BigQuery to those tables as a data source for the following report.
+- The Dashboard could be accessed here: **[`chicago_bikeshare_report_2023_2024`](https://lookerstudio.google.com/reporting/b38cc423-b4e1-4f73-b794-7f03c64d210b)**
+
+#### Report Screenshots:
+![Page 1](./screenshots/report_pg1.png)
+
+![Page 2](./screenshots/report_pg2.png)
+
+Key Findings:
+- **Trip Count/Duration Insights based on User Type:**
+  - Of the 11,580,234 total bike trips between 2023 and 2024, 63.6% of these trips are made by members, while 36.4% are by casual users. 
+  - Although members are the primary users of the bikeshare program, on average they take shorter trips (12.64 minutes) compared to casual users (26.63 minutes).
+  - In result, the proportion of total usage time of casual users (54.6%) exceed that of member users (45.4%).
+  - Casual users likely use the bikes with longer trips for leisure, while members, who have joined a subscription plan, prefer shorter, more frequent trips, possibly for commuting.
+  - This can be further confirmed by the fact that Casual Users' usage peak on weekends, while Members' usage peak on Weekdays.
+
+- **Seasonality of Bike Usage:**
+  - Usage spikes in summer months (June-September), aligning with warmer weather. On the other hand, bike usage drops significantly during the colder months, such as December and January.
+  - This reflects the seasonal nature of bikeshare usage, with casual users being more active in the warmer months (longer ride times).
+
+- **Hourly Trip Patterns:**
+  - Casual Users: Peak usage occurs in the evening, between 6 PM and 8 PM, reflecting more recreational or after-work trips.
+  - Members: Peak usage is observed in both morning and evening rush hour (7-9AM and 4-6PM), suggesting regular commuting patterns.
+
+**Quarterly Usage Model ([`bike_trips_quarterly_usage.sql`](./02_dbt_transformation/chicago_bikeshare/models/core/bike_trips_quarterly_usage.sql)):** 
+![Page 3](./screenshots/report_pg3.png)
+  - Compared to 2023, Casual Users usage experienced growth in Q1,3,4 of 2024, while Member usage experienced growth in Q1,2,3.
+
+**Hourly Duration Percentiles Model ([`bike_trips_duration_percentile_hourly.sql`](./02_dbt_transformation/chicago_bikeshare/models/core/bike_trips_duration_percentile_hourly.sql)):**  
+![Page 4](./screenshots/report_pg4.png)
+  - Across all 10th, median, and 90th percentiles, Casual Members had longer ride times across all hours, and showed a more variable ride time across the day.
 
 ---
 
@@ -201,25 +259,3 @@ select
   END as trip_duration_category
 FROM divvy_tripdata
 ```
-
----
-
-## How to Use This Repository
-
-1. **Run Kestra pipeline** (dockerized) to ingest monthly raw data and load into BigQuery.
-2. **Deploy dbt project** to build staging and fact models.
-3. **Connect Google Looker Studio** to BigQuery datasets for analysis and dashboards.
-4. Explore trip data trends, rider behavior, and temporal patterns.
-
-
-
-## Contact
-
-For questions or collaboration, please reach out:
-
-- GitHub: [your-github-username](https://github.com/your-github-username)  
-- Email: your.email@example.com
-
----
-
-*This project is part of my data engineering portfolio showcasing cloud ETL pipelines, data modeling, and analytics best practices.*
