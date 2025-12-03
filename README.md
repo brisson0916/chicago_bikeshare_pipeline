@@ -28,7 +28,7 @@ flowchart LR
   GCS --> BigQuery
   BigQuery --> DBT
   DBT --> BigQuery
-  BigQuery --> Google Looker Studio
+  BigQuery --> Google_Looker_Studio
 ```
 
 
