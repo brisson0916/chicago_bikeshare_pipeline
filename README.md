@@ -1,12 +1,14 @@
 # Chicago Bikeshare (Divvy) Data Pipeline
 
-This project is a end-to-end data engineering and analytics project for the **Chicago bikeshare program (Divvy)**, covering over 11 million records of trip data from 2023 to 2024. The project demonstrates my skills in workflow orchestration and automation, cloud data engineering, data transformation, and BI reporting.
+A end-to-end data engineering and analytics project for the **Chicago bikeshare program (Divvy)**, covering over 11 million records of trip data from 2023 to 2024. The project demonstrates my skills in automating workflow orchestration, cloud data engineering, data transformation, and BI reporting.
+
+*This README.md is a documentation of the workflow and tools used. For a practical guide on how to run this project, please read the [`HOW-TO-RUN.md`](./HOW-TO-RUN.md) file.*
 
 ## Project Overview and Technologies Used
 
 This project ingests, processes, transforms, and analyzes monthly Divvy trip data CSV files using modern cloud technologies and tools to achieve automation:
 
-- **Kestra:** [YAML based workflow orchestration pipeline](https://kestra.io/) that automates data ingestion and loading, schema enforcement, and some simple cleaning.
+- **Kestra:** [YAML based workflow orchestration tool](https://kestra.io/) to create a pipeline that automates data ingestion and loading, schema enforcement, and simple cleaning.
 - **Docker:** for the containerization of the Kestra pipeline.
 - **Google Cloud Storage:** Raw CSV files stored in a Google Cloud Storage (GCS) bucket serving as a data lake: [`gs://chicago-bikeshare-tripdata`](https://console.cloud.google.com/storage/browser/chicago-bikeshare-tripdata).
 - **Big Query:** Big Query as a data warehouse used for structured data storage, staging, and querying: [`modern-saga-472915-f1.divvy_tripdata`](https://console.cloud.google.com/bigquery?ws=!1m4!1m3!3m2!1smodern-saga-472915-f1!2sdivvy_tripdata).
@@ -93,6 +95,7 @@ This project uses a **dockerized Kestra** pipeline [`gcp_tripdata_scheduled.yaml
         type: io.kestra.plugin.core.trigger.Schedule
         cron: "0 9 15 * *"  # Runs at 9:00 AM on the 15th of every month
     ```
+  - This will process the new data published each month.
   - Alternatively, the backfill function in kestra can also be used to run data from previous months (which this project did)
 
 
